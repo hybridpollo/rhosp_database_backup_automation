@@ -3,8 +3,6 @@
 # Playbook and scripts provided by Red Hat Consulting come as is
 # and without any warranties.
 ###################################################################
-# Back up the Overcloud database as recommended by Red Hat OpenStack Platform 16 Documentation
-# Source: https://access.redhat.com/documentation/en-us/red_hat_openstack_platform/16.2/html/back_up_and_restore_the_director_undercloud/assembly-backing-up-the-director-undercloud_bur-director#proc-backing-up-a-containerized-undercloud_bur-director
 #
 - name: Backing up the OpenStack Databases of the Overcloud
   hosts: overcloud_controllers
