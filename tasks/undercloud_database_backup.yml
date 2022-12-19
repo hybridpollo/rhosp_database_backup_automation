@@ -1,0 +1,76 @@
+---
+- name: Ensure the NFS mountpoint exists in the Undercloud
+  file:
+    path: '{{ nfs_client_mount_directory }}'
+    state: directory
+    mode: 0755
+    owner: root
+    group: root
+  tags:
+    - prepare_nfs_client
+    - create_backup_dirs
+    - undercloud_backup
+
+- name: Mount the NFS backup directory in the Undercloud
+  mount:
+    src: '{{ nfs_src_mount }}'
+    path: '{{ nfs_client_mount_directory }}'
+    fstype: nfs
+    opts: '{{ nfs_client_mount_options }}'
+    state: mounted
+  tags:
+    - prepare_nfs_client
+    - mount_nfs
+    - undercloud_backup
+
+- name: Prepare the database backup directories in the Undercloud
+  file:
+    path: '{{ item }}'
+    mode: 0755
+    state: directory
+  with_items:
+    - '{{ backup_directory_base }}/{{ backup_directory_today }}'
+  tags:
+    - prepare_nfs_client
+    - create_backup_dirs
+    - undercloud_backup
+
+- name: Register root database password 
+  run_once: true
+  shell: |
+    hiera -c {{ hiera_config_file }} 'mysql::server::root_password'
+  when: mysql_password is undefined
+  register: mysql_password
+  changed_when: false
+  tags:
+    - check_db_status
+    - undercloud_backup
+
+- name: Backup Undercloud databases
+  shell: |
+    podman exec mysql bash -c 'mysqldump -uroot -p{{ mysql_password.stdout }} --single-transaction --opt --all-databases' | \
+    gzip -9 > {{ backup_directory_base }}/{{ backup_directory_today }}/{{ database_dump_file_name }}
+  register: backup_result
+  tags:
+    - undercloud_db_dump_create
+    - undercloud_backup
+
+- name: Unmount the NFS backup directory in the Undercloud
+  mount:
+    src: '{{ nfs_src_mount }}'
+    path: '{{ nfs_client_mount_directory }}'
+    fstype: nfs
+    state: unmounted
+  tags:
+    - unmount_nfs
+    - undercloud_backup
+
+- name: Print backup success message
+  debug:
+    msg:
+      - 'OpenStack Undercloud database backups completed succesfully.'
+      - 'OpenStack Undercloud backup directory location: {{ nfs_src_mount }}/{{ backup_directory_today }}'
+  when: backup_result.rc == 0
+  tags:
+    - print_success
+    - undercloud_backup

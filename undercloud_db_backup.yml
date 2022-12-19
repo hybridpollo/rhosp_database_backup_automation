@@ -1,0 +1,20 @@
+---
+###################################################################
+# Playbook and scripts provided by Red Hat Consulting come as is
+# and without any warranties.
+###################################################################
+# Back up the undercloud database as recommended by Red Hat OpenStack Platform 16 Documentation
+# https://access.redhat.com/documentation/en-us/red_hat_openstack_platform/16.2/html/back_up_and_restore_the_director_undercloud/assembly-backing-up-the-director-undercloud_bur-director#proc-backing-up-a-containerized-undercloud_bur-director
+- name: Backing up the OpenStack Databases of the Undercloud
+  hosts: undercloud
+  become: true
+  vars:
+    hiera_config_file: '/etc/hiera.yaml'
+    nfs_src_mount: '172.16.255.100:/lv_data/backups/openstack_backups'
+    nfs_client_mount_directory: '/backups'
+    nfs_client_mount_options: 'rw,sync'
+    backup_directory_base: '/backups/database_backups'
+    backup_directory_today: 'undercloud-databases-backup-{{ ansible_date_time.iso8601_basic_short }}'
+    database_dump_file_name: 'undercloud-all-databases-{{ ansible_date_time.iso8601_basic_short }}.gz'
+  tasks:
+   - import_tasks: ./tasks/undercloud_database_backup.yml

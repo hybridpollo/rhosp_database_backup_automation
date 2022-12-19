@@ -1,0 +1,18 @@
+---
+undercloud:
+  hosts:
+    osp-dir.voltron.xyz:
+      ansible_user: stack
+      ansible_host: 172.25.48.10
+
+overcloud_controllers:
+  hosts:
+    osp-ctrl01.voltron.xyz:
+      ansible_user: heat-admin
+      ansible_host: 172.25.50.21
+    osp-ctrl02.voltron.xyz:
+      ansible_user: heat-admin
+      ansible_host: 172.25.50.22
+    osp-ctrl03.voltron.xyz:
+      ansible_user: heat-admin
+      ansible_host: 172.25.50.23

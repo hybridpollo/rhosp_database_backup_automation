@@ -1,0 +1,23 @@
+---
+###################################################################
+# Playbook and scripts provided by Red Hat Consulting come as is
+# and without any warranties.
+###################################################################
+# Back up the Overcloud database as recommended by Red Hat OpenStack Platform 16 Documentation
+# Source: https://access.redhat.com/documentation/en-us/red_hat_openstack_platform/16.2/html/back_up_and_restore_the_director_undercloud/assembly-backing-up-the-director-undercloud_bur-director#proc-backing-up-a-containerized-undercloud_bur-director
+#
+- name: Backing up the OpenStack Databases of the Overcloud
+  hosts: overcloud_controllers
+  become: true
+  vars:
+    hiera_config_file: '/etc/hiera.yaml'
+    nfs_src_mount: '172.16.255.100:/lv_data/backups/openstack_backups'
+    nfs_client_mount_directory: '/backups'
+    nfs_client_mount_options: 'rw,sync'
+    backup_directory_base: '/backups/database_backups'
+    backup_directory_today: 'overcloud-databases-backup-{{ ansible_date_time.iso8601_basic_short }}'
+    database_dump_file_grants_db: 'overcloud-database-backup-grants-{{ ansible_date_time.iso8601_basic_short }}.gz'
+    database_dump_file_openstack_db: 'overcloud-database-backup-openstack-{{ ansible_date_time.iso8601_basic_short }}.gz'
+  tasks:
+   -  import_tasks: ./tasks/overcloud_database_backup.yml
+

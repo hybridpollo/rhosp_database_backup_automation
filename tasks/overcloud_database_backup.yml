@@ -1,0 +1,151 @@
+---
+- name: Register Overcloud database password 
+  run_once: true
+  shell: |
+    hiera -c {{ hiera_config_file }} 'mysql::server::root_password'
+  when: mysql_password is undefined
+  register: mysql_password
+  changed_when: false
+  tags:
+    - check_db_status
+    - overcloud_backup
+
+- name: Register Overcloud database VIP 
+  run_once: true
+  shell: |
+    hiera -c {{ hiera_config_file }} 'mysql_vip'
+  when: mysql_vip_addr is undefined
+  register: mysql_vip_addr
+  changed_when: false
+  tags:
+    - check_db_status
+    - overcloud_backup
+
+- name: Register MariaDB/Galera container name on controller node
+  run_once: true
+  command: podman ps --filter=name=galera-bundle -q
+  register: galera_container_id
+  changed_when: false
+  tags:
+    - check_db_status
+    - overcloud_backup
+
+- name: Register MariaDB/Galera cluster member count
+  run_once: true
+  shell: |
+    podman exec -ti {{ galera_container_id.stdout }} mysql -uroot -h{{ mysql_vip_addr.stdout }} -p{{ mysql_password.stdout }} \
+    -s -N -e "SHOW STATUS LIKE '%wsrep_cluster_size%'" | awk '{ print $2 }'
+  register: mariadb_cluster_size
+  changed_when: false
+  tags:
+    - check_db_status
+    - overcloud_backup
+
+# Abort task if database cluster members < 3
+# this is indicative of a out-of-sync MariaDB cluster
+- name: Abort backups if MariaDB/Galera cluster members < 3
+  run_once: true
+  fail:
+    msg: 'ERROR: The MariaDB cluster is not synchronized. Please investigate.'
+  when: mariadb_cluster_size.stdout|int < 3
+  tags:
+    - check_db_status
+    - overcloud_backup
+
+- name: Get active Galera node behind the MariaDB VIP 
+  shell: |
+    ip addr show | grep -q {{ mysql_vip_addr.stdout }}  && echo "$(hostname)" || exit 0
+  changed_when: false
+  register: galera_active_host
+  tags:
+    - check_db_status
+    - overcloud_backup
+
+- name: Select first non-active mysql host from the host group to perform the database backup
+  run_once: true
+  set_fact:
+    mysql_backup_host: "{{ groups['overcloud_controllers'] | difference(galera_active_host.stdout) | first }}"
+  tags:
+    - check_db_status
+    - overcloud_backup
+
+- name: Display MariaDB host to perform the database backup
+  run_once: true
+  debug:
+    msg: 'Database host to backup is: {{ mysql_backup_host }}'
+  tags:
+    - check_db_status
+    - overcloud_backup
+
+- name: 'Start of tasks within the same block'
+  when: mysql_backup_host == ansible_fqdn
+  block:
+    - debug:
+        msg: 'Beginning the OpenStack database backups on selected standby host {{ mysql_backup_host }}'
+
+    - name: Ensure the NFS mountpoint exists in the targeted Overcloud node
+      file:
+        path: '{{ nfs_client_mount_directory }}'
+        state: directory
+        mode: 0755
+        owner: root
+        group: root
+
+    - name: Mount the NFS backup directory in the targeted Overcloud node
+      mount:
+        src: '{{ nfs_src_mount }}'
+        path: '{{ nfs_client_mount_directory }}'
+        fstype: nfs
+        opts: '{{ nfs_client_mount_options }}'
+        state: mounted
+
+    - name: Prepare the database backup directories in the Overcloud
+      file:
+        path: '{{ item }}'
+        mode: 0755
+        state: directory
+      with_items:
+        - '{{ backup_directory_base }}/{{ backup_directory_today }}'
+
+    - name: Register MariaDB/Galera container name on target controller node
+      command: podman ps --filter=name=galera-bundle -q
+      register: galera_container_id
+      changed_when: false
+    
+    - name: Backing up DB Grants 
+      shell: |
+        podman exec {{ galera_container_id.stdout }} bash -c "mysql -uroot \
+        -p{{ mysql_password.stdout }} -s -N \
+        -e \"SELECT CONCAT('\\\"SHOW GRANTS FOR ''',user,'''@''',host,''';\\\"') \
+        FROM mysql.user where (length(user) > 0 and \
+        (Host = 'localhost' or Host='%' or IS_IPV4(Host) or IS_IPV6(Host)))\"  | xargs -n1 mysql \
+        -uroot -p{{ mysql_password.stdout }} -s -N -e | sed 's/$/;/' " | \
+        gzip -9 > {{ backup_directory_base }}/{{ backup_directory_today }}/{{ database_dump_file_grants_db }}
+      register: mysql_grants_backup
+      when: mysql_password.stdout is defined
+
+    - name: Backing up All OpenStack databases for the Overcloud
+      shell: |
+        podman exec {{ galera_container_id.stdout }} bash -c "mysql -uroot \
+        -p{{ mysql_password.stdout }} -s -N \
+        -e \"select distinct table_schema from information_schema.tables \
+        where engine='innodb' and table_schema != 'mysql';\" | xargs mysqldump -uroot \
+        -p{{ mysql_password.stdout }} --single-transaction --databases" | gzip -9 > \
+        {{ backup_directory_base }}/{{ backup_directory_today }}/{{ database_dump_file_openstack_db }}
+      register: mysql_db_backup
+      when: mysql_password.stdout is defined
+
+    - name: Unmount the NFS backup directory in the Overcloud
+      mount:
+        src: '{{ nfs_src_mount }}'
+        path: '{{ nfs_client_mount_directory }}'
+        fstype: nfs
+        state: unmounted
+
+    - debug:
+        msg:
+          - 'OpenStack Overcloud database backups completed succesfully.'
+          - 'OpenStack Overcloud backup directory location: {{ nfs_src_mount }}/{{ backup_directory_today }}'
+      when:
+        - mysql_grants_backup.rc == 0
+        - mysql_db_backup.rc == 0
