@@ -10,13 +10,12 @@ Overcloud database backups without instsalling ReaR in Red Hat OpenStack Platfor
 
 Red Hat OpenStack Platform 16.x recommends the use of the Relax and Recover tool
 for the purpose of performing image based backups of Undercloud and Overcloud
-controllers. There are certain use cases where performing image based backups of
+controllers. There are certain times where performing image based backups of
 entire Overcloud controller nodes is not desirable, and you are interested in a
 way to perform database only backups of the Undercloud and Overcloud databases.
 
 The playbooks introduced in this repository allows for the backup of a
-containerized Undercloud and Overcloud nodes. 
-
+containerized Undercloud and Overcloud nodes.
 
 ### Requisites
 - Ansible >= 2.9
