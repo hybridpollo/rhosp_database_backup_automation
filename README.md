@@ -58,7 +58,7 @@ the Galera cluster manually. In the Red Hat OpenStack Platform 16.2
 documentation](https://access.redhat.com/documentation/en-us/red_hat_openstack_platform/16.2/html/backing_up_and_restoring_the_undercloud_and_control_plane_nodes/assembly_restoring-the-undercloud-and-control-plane-nodes_br-undercloud-ctlplane#proc_restoring-galera-cluster-manually_restore-undercloud-ctlplane).
 
 ### How do these playbooks work ? 
-undercloud_db_backup.yml is a top level playbook with a simple set of variables.
+`undercloud_db_backup.yml` is a top level playbook with a simple set of variables.
 The tasks are imported from the undercloud_database_backup.yml file in the tasks
 directory. This is what occurs on the Undercloud once this
 playbook is invoked:
@@ -68,13 +68,40 @@ playbook is invoked:
   database files are stored
 - MySQL root password is retrieved from hieradata in the Undercloud. This
   prevents from needing to declare passwords as playbook variables for later
-use.
+use
 - The mysqldump command is executed inside the database container in the
   Undercloud. These database dump file is compressed and stored in today's
-backup directory.
+backup directory
+- NFS share is unmounted on the Undercloud
+- A success backup message is displayed with the name and location of the
+  database backup directory in the NFS server
 
 
-#### Undercloud Backups
+`overcloud_db_backup.yml` is a top level playbook with a simple set of variables.
+The tasks are imported from the overcloud_database_backup.yml file in the tasks
+directory. This is what occurs in sequence when the playbook is involved: 
+playbook is invoked:
+- MySQL root password is retrieved from hieradata from the first controller
+  node. This prevents from needing to declare passwords as playbook variables for later
+- MySQL database VIP is retrieved from hieradata. This is used to validate the
+  entire Galera cluster is synchronized before selecting a non-active database
+  node to perform the database dump. If the cluster is not synchronized, the
+  playbook will abort.
+- Verifies the cluster is synchronized. Abort playbook if is not.
+- Selects the first database node from the controller inventory group that is
+  NOT the active database host. 
+  - NFS client mount directory is created in the Undercloud
+  - NFS share is mounted on the Undercloud
+  - Run-once backup directory is created in the Undercloud. This is where the
+  database files are stored
+  - The mysqldump command backs up the MySQL grant tables on the selected controller node. 
+    These database dump file is compressed and stored in today's
+    backup directory on the previously mounted nfs mount. This is done within
+    the database container.
+  - The mysqldump command backs up all of the OpenStack databases on the selected overcloud controller node. 
+    These database dump file is compressed and stored in today's
+    backup directory on the previously mounted nfs mount. This is done within
+    the database container.
+  - NFS share is unmounted on the selected overcloud controller node
+  - A success backup message is displayed with the name and location of the
 
-
-#### Overcloud Backups
