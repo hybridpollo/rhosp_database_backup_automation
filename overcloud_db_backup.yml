@@ -4,7 +4,7 @@
 # and without any warranties.
 ###################################################################
 #
-- name: Backing up the OpenStack Databases of the Overcloud
+- name: Backing up the OpenStack Databases of the overcloud
   hosts: overcloud_controllers
   become: true
   vars:

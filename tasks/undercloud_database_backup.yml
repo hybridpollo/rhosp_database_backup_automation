@@ -1,5 +1,5 @@
 ---
-- name: Ensure the NFS mountpoint exists in the Undercloud
+- name: Ensure the NFS mountpoint exists in the undercloud
   file:
     path: '{{ nfs_client_mount_directory }}'
     state: directory
@@ -11,7 +11,7 @@
     - create_backup_dirs
     - undercloud_backup
 
-- name: Mount the NFS backup directory in the Undercloud
+- name: Mount the NFS backup directory in the undercloud
   mount:
     src: '{{ nfs_src_mount }}'
     path: '{{ nfs_client_mount_directory }}'
@@ -23,7 +23,7 @@
     - mount_nfs
     - undercloud_backup
 
-- name: Prepare the database backup directories in the Undercloud
+- name: Prepare the database backup directories in the undercloud
   file:
     path: '{{ item }}'
     mode: 0755
@@ -46,7 +46,7 @@
     - check_db_status
     - undercloud_backup
 
-- name: Backup Undercloud databases
+- name: Backup undercloud databases
   shell: |
     podman exec mysql bash -c 'mysqldump -uroot -p{{ mysql_password.stdout }} --single-transaction --opt --all-databases' | \
     gzip -9 > {{ backup_directory_base }}/{{ backup_directory_today }}/{{ database_dump_file_name }}
@@ -55,7 +55,7 @@
     - undercloud_db_dump_create
     - undercloud_backup
 
-- name: Unmount the NFS backup directory in the Undercloud
+- name: Unmount the NFS backup directory in the undercloud
   mount:
     src: '{{ nfs_src_mount }}'
     path: '{{ nfs_client_mount_directory }}'
@@ -68,8 +68,8 @@
 - name: Print backup success message
   debug:
     msg:
-      - 'OpenStack Undercloud database backups completed succesfully.'
-      - 'OpenStack Undercloud backup directory location: {{ nfs_src_mount }}/{{ backup_directory_today }}'
+      - 'OpenStack undercloud database backups completed succesfully.'
+      - 'OpenStack undercloud backup directory location: {{ nfs_src_mount }}/{{ backup_directory_today }}'
   when: backup_result.rc == 0
   tags:
     - print_success

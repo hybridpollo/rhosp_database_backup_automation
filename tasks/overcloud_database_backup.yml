@@ -1,5 +1,5 @@
 ---
-- name: Register Overcloud database password 
+- name: Register overcloud database password 
   run_once: true
   shell: |
     hiera -c {{ hiera_config_file }} 'mysql::server::root_password'
@@ -10,7 +10,7 @@
     - check_db_status
     - overcloud_backup
 
-- name: Register Overcloud database VIP 
+- name: Register overcloud database VIP 
   run_once: true
   shell: |
     hiera -c {{ hiera_config_file }} 'mysql_vip'
@@ -83,7 +83,7 @@
     - debug:
         msg: 'Beginning the OpenStack database backups on selected standby host {{ mysql_backup_host }}'
 
-    - name: Ensure the NFS mountpoint exists in the targeted Overcloud node
+    - name: Ensure the NFS mountpoint exists in the targeted overcloud node
       file:
         path: '{{ nfs_client_mount_directory }}'
         state: directory
@@ -91,7 +91,7 @@
         owner: root
         group: root
 
-    - name: Mount the NFS backup directory in the targeted Overcloud node
+    - name: Mount the NFS backup directory in the targeted overcloud node
       mount:
         src: '{{ nfs_src_mount }}'
         path: '{{ nfs_client_mount_directory }}'
@@ -99,7 +99,7 @@
         opts: '{{ nfs_client_mount_options }}'
         state: mounted
 
-    - name: Prepare the database backup directories in the Overcloud
+    - name: Prepare the database backup directories in the overcloud
       file:
         path: '{{ item }}'
         mode: 0755
@@ -124,7 +124,7 @@
       register: mysql_grants_backup
       when: mysql_password.stdout is defined
 
-    - name: Backing up All OpenStack databases for the Overcloud
+    - name: Backing up All OpenStack databases for the overcloud
       shell: |
         podman exec {{ galera_container_id.stdout }} bash -c "mysql -uroot \
         -p{{ mysql_password.stdout }} -s -N \
@@ -135,7 +135,7 @@
       register: mysql_db_backup
       when: mysql_password.stdout is defined
 
-    - name: Unmount the NFS backup directory in the Overcloud
+    - name: Unmount the NFS backup directory in the overcloud
       mount:
         src: '{{ nfs_src_mount }}'
         path: '{{ nfs_client_mount_directory }}'
@@ -144,8 +144,8 @@
 
     - debug:
         msg:
-          - 'OpenStack Overcloud database backups completed succesfully.'
-          - 'OpenStack Overcloud backup directory location: {{ nfs_src_mount }}/{{ backup_directory_today }}'
+          - 'OpenStack overcloud database backups completed succesfully.'
+          - 'OpenStack overcloud backup directory location: {{ nfs_src_mount }}/{{ backup_directory_today }}'
       when:
         - mysql_grants_backup.rc == 0
         - mysql_db_backup.rc == 0
